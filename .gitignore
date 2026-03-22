@@ -49,3 +49,6 @@ desktop.ini
 # Testing
 coverage/
 .nyc_output/
+
+# vite cache
+client/.vite/
