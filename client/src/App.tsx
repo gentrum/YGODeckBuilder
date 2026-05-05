@@ -13,6 +13,11 @@ interface DeckItem extends CardData {
   quantity: number;
 }
 
+interface SavedDeck {
+  _id: string;
+  name: string;
+}
+
 function App() {
   const [cards, setCards] = useState([]);
   {
@@ -23,7 +28,12 @@ function App() {
     can be at 3)*/
   }
   const [deck, setDeck] = useState<DeckItem[]>([]);
+  const [searchInput, setSearchInput] = useState("Blue-Eyes White Dragon");
   const [searchTerm, setSearchTerm] = useState("Blue-Eyes White Dragon");
+
+  const [deckName, setDeckName] = useState("");
+  const [loadedDeckName, setLoadedDeckName] = useState("");
+  const [savedDecks, setSavedDecks] = useState<SavedDeck[]>([]);
 
   const fetchCards = useCallback(async (nameToSearch: string) => {
     try {
@@ -36,12 +46,32 @@ function App() {
     }
   }, []);
 
+
   useEffect(() => {
-    fetchCards(searchTerm);
+    const loadCards = async () => {
+      try{
+        await fetchCards(searchTerm);
+      }catch(error){
+        console.error("Error loading cards.", error);
+      }
+    };
+    loadCards();
   }, [fetchCards, searchTerm]);
 
+  useEffect(() => {
+    const loadSavedDecks = async () => {
+      try{
+        const response = await axios.get("http://localhost:5000/api/decks");
+        setSavedDecks(response.data);
+      }catch(error){
+        console.error("Error fetching saved Decks", error);
+      }
+    };
+    loadSavedDecks();
+  }, []);
+
   const handleSearchClick = () => {
-    setSearchTerm(searchTerm);
+    setSearchTerm(searchInput);
   };
 
   //adding a card to the deck
@@ -100,6 +130,60 @@ function App() {
     });
   };
 
+  const saveDeck = async () => {
+    const trimmedName = deckName.trim();
+    if(!trimmedName){
+      alert("Please enter a deck name.");
+      return;
+    }
+
+    const matchingDeck = savedDecks.find(
+      (deck) => deck.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    const isSameAsLoaded = loadedDeckName?.toLowerCase() === trimmedName.toLowerCase();
+
+    if(matchingDeck && !isSameAsLoaded){
+      alert("A deck with this name already exists. Please choose a different name or load the existing deck to overwrite it.");
+      return;
+    }
+
+    const deckData = {
+      name: deckName,
+      cards: deck.map((item) => ({cardId: item.id, quantity: item.quantity}))
+    };
+    
+    try {
+      await axios.post("http://localhost:5000/api/decks", deckData);
+      alert("Deck saved successfully.");
+      loadSavedDecks();
+    } catch (error) {
+      alert("Error saving deck. Please try again.");
+      console.error("Error saving deck:", error);
+    }
+  }
+
+  const loadSavedDecks = async () => {
+    const response = await axios.get("http://localhost:5000/api/decks");
+    setSavedDecks(response.data);
+  }
+
+  const handleLoadDeck = async (selectedName: string) => {
+    if(!selectedName || selectedName.startsWith("--")){
+      return;
+    }
+    try {
+      const response = await axios.get(`http://localhost:5000/api/decks/${selectedName}`);
+      setDeckName(response.data.name);
+      setDeck(response.data.cards);
+      setLoadedDeckName(response.data.name);
+      console.log("Deck loaded:", response.data);
+    }catch(error){
+      console.error("Error loading deck:", error);
+      alert("Failed loading deck. Please check server status and try again.");
+    }
+  };
+
   return (
     <div
       style={{
@@ -129,8 +213,8 @@ function App() {
         }}>
           <input 
             type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearchClick()}
             placeholder="Search for a card"
             style={{
@@ -189,6 +273,35 @@ function App() {
         flexDirection: "column",
         boxSizing: "border-box"
       }}>
+        {/* Save Deck section */}
+        <input 
+          value={deckName}
+          onChange={(e) => setDeckName(e.target.value)}
+          placeholder="Deck Name"
+          style={{width: '100%', marginBottom: '10px', padding: '5px'}}
+        />
+        <button onClick={saveDeck} style={{
+          width: "100%",
+          backgroundColor: "#28a745",
+          color: "#fff",
+          border: "none",
+          padding: "10px",
+          cursor: "pointer",
+        }}>
+          Save Deck
+        </button> 
+        {/* Load deck section */}
+        <div style={{ marginBottom:'10px'}}>
+          <select 
+            onChange ={(e) => handleLoadDeck(e.target.value)} style={{width:'100%'}}>
+              <option value="">Load Saved Deck</option>
+              {savedDecks.map((deck) => (
+                <option key={deck._id} value={deck.name}>
+                  {deck.name}
+                </option>
+              ))}
+            </select>
+        </div>
         <h2 style={{margin: "0 0 10px 0"}}>
           Your Deck ({deck.reduce((s, i) => s + i.quantity, 0)}/60)
         </h2>
