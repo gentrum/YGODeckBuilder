@@ -27,13 +27,18 @@ function App() {
     limited/semi-limited later, for now its just assuming everything 
     can be at 3)*/
   }
-  const [deck, setDeck] = useState<DeckItem[]>([]);
+  const [mainDeck, setMainDeck] = useState<DeckItem[]>([]);
+  const [extraDeck, setExtraDeck] = useState<DeckItem[]>([]);
+  const [sideDeck, setSideDeck] = useState<DeckItem[]>([]);
+
   const [searchInput, setSearchInput] = useState("Blue-Eyes White Dragon");
   const [searchTerm, setSearchTerm] = useState("Blue-Eyes White Dragon");
 
   const [deckName, setDeckName] = useState("");
   const [loadedDeckName, setLoadedDeckName] = useState("");
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>([]);
+
+  const [activeTab, setActiveTab] = useState<"main" | "extra" | "side">("main");
 
   const fetchCards = useCallback(async (nameToSearch: string) => {
     try {
@@ -74,32 +79,66 @@ function App() {
     setSearchTerm(searchInput);
   };
 
-  //adding a card to the deck
-  const totalCards = deck.reduce((sum, item) => sum + item.quantity, 0);
-  const addToDeck = (card: CardData) => {
-    if (totalCards >= 60) {
-      alert("60 cards allowed in Main Deck.");
-      return;
-    }
+  //helpers for card counts
+  const totalMain = mainDeck.reduce((sum, item) => sum + item.quantity, 0);
+  const totalExtra = extraDeck.reduce((sum, item) => sum + item.quantity, 0);
+  const totalSide = sideDeck.reduce((sum, item) => sum + item.quantity, 0);
+
+  //helpers for adding cards to certain decks
+  const addToMain = (card: CardData) => {
     //spread operator to create new array with existing cards + new card
-    setDeck((prevDeck) => {
+    setMainDeck((prevDeck) => {
       const existingCardIndex = prevDeck.findIndex(
         (item) => item.id === card.id,
       );
-      if (existingCardIndex !== -1) {
-        //card already exists in deck, check quantity
-        if (prevDeck[existingCardIndex].quantity >= 3) {
-          alert("You can only have 3 copies of a card in your deck.");
-          return prevDeck;
-        } else {
-          //increment copy count
-          const newDeck = [...prevDeck];
-          newDeck[existingCardIndex] = {
-            ...newDeck[existingCardIndex],
-            quantity: newDeck[existingCardIndex].quantity + 1,
-          };
-          return newDeck;
-        }
+      if (existingCardIndex !== -1 ) {
+        //increment copy count
+        const newDeck = [...prevDeck];
+        newDeck[existingCardIndex] = {
+        ...newDeck[existingCardIndex],
+        quantity: newDeck[existingCardIndex].quantity + 1,
+        };
+        return newDeck;
+      } else {
+        //card not in deck, add it with quantity 1
+        return [...prevDeck, { ...card, quantity: 1 }];
+      }
+    });
+  };
+  const addToExtra = (card: CardData) => {
+    //spread operator to create new array with existing cards + new card
+    setExtraDeck((prevDeck) => {
+      const existingCardIndex = prevDeck.findIndex(
+        (item) => item.id === card.id,
+      );
+      if (existingCardIndex !== -1 ) {
+        //increment copy count
+        const newDeck = [...prevDeck];
+        newDeck[existingCardIndex] = {
+        ...newDeck[existingCardIndex],
+        quantity: newDeck[existingCardIndex].quantity + 1,
+        };
+        return newDeck;
+      } else {
+        //card not in deck, add it with quantity 1
+        return [...prevDeck, { ...card, quantity: 1 }];
+      }
+    });
+  };
+  const addToSide = (card: CardData) => {
+    //spread operator to create new array with existing cards + new card
+    setSideDeck((prevDeck) => {
+      const existingCardIndex = prevDeck.findIndex(
+        (item) => item.id === card.id,
+      );
+      if (existingCardIndex !== -1 ) {
+        //increment copy count
+        const newDeck = [...prevDeck];
+        newDeck[existingCardIndex] = {
+        ...newDeck[existingCardIndex],
+        quantity: newDeck[existingCardIndex].quantity + 1,
+        };
+        return newDeck;
       } else {
         //card not in deck, add it with quantity 1
         return [...prevDeck, { ...card, quantity: 1 }];
@@ -107,8 +146,51 @@ function App() {
     });
   };
 
-  const removeFromDeck = (id: string) => {
-    setDeck((prevDeck) => {
+  //check if there are already 3 copies of this card across the entire deck (main + extra + side)
+  const checkTotalCopies = (card: CardData) => {
+    const mainCount = mainDeck.find(c => c.id === card.id)?.quantity || 0;
+    const extraCount = extraDeck.find(c => c.id === card.id)?.quantity || 0;
+    const sideCount = sideDeck.find(c => c.id === card.id)?.quantity || 0;
+    const totalCopies = mainCount + extraCount + sideCount;
+    if (totalCopies >= 3) {
+      alert("You can only have 3 copies of a card.");
+      return false;
+    }
+    return true;
+  };
+
+  const addToDeck = (card: CardData, target: 'main' | 'extra' | 'side') => {
+    //check if adding the card would exceed the 3 copy limit across the entire deck
+    if (!checkTotalCopies(card)) {
+      alert("You can only have 3 copies of a card across your entire deck (Main + Extra + Side).");
+      return;
+    }
+
+    //check deck sizes
+    if (totalMain >= 60 && target === 'main') {
+      alert("60 cards allowed in Main Deck.");
+      return;
+    }
+    if (totalExtra >= 15 && target === 'extra') {
+      alert("15 cards allowed in Extra Deck.");
+      return;
+    }
+    if (totalSide >= 15 && target === 'side') {
+      alert("15 cards allowed in Side Deck.");
+      return;
+    }
+   if(target === 'main'){
+    addToMain(card);
+   } else if(target === 'extra'){
+    addToExtra(card);
+   } else if(target === 'side'){
+    addToSide(card);
+   }
+  };
+
+  //helpers for removing a card from a certain deck
+  const removeFromMain = (id: string) => {
+    setMainDeck((prevDeck) => {
       const existingCardIndex = prevDeck.findIndex((item) => item.id === id);
       if (existingCardIndex === -1) {
         alert("Card not found in deck.");
@@ -128,6 +210,60 @@ function App() {
         return newDeck;
       }
     });
+  }
+  const removeFromExtra = (id: string) => {
+    setExtraDeck((prevDeck) => {
+      const existingCardIndex = prevDeck.findIndex((item) => item.id === id);
+      if (existingCardIndex === -1) {
+        alert("Card not found in deck.");
+        return prevDeck;
+      } else {
+        const newDeck = [...prevDeck];
+        if (newDeck[existingCardIndex].quantity > 1) {
+          //2 or 3 copies, just decrement quantity
+          newDeck[existingCardIndex] = {
+            ...newDeck[existingCardIndex],
+            quantity: newDeck[existingCardIndex].quantity - 1,
+          };
+        } else {
+          //only 1 copy, remove the card entirely
+          newDeck.splice(existingCardIndex, 1);
+        }
+        return newDeck;
+      }
+    });
+  };
+  const removeFromSide = (id: string) => {
+    setSideDeck((prevDeck) => {
+      const existingCardIndex = prevDeck.findIndex((item) => item.id === id);
+      if (existingCardIndex === -1) {
+        alert("Card not found in deck.");
+        return prevDeck;
+      } else {
+        const newDeck = [...prevDeck];
+        if (newDeck[existingCardIndex].quantity > 1) {
+          //2 or 3 copies, just decrement quantity
+          newDeck[existingCardIndex] = {
+            ...newDeck[existingCardIndex],
+            quantity: newDeck[existingCardIndex].quantity - 1,
+          };
+        } else {
+          //only 1 copy, remove the card entirely
+          newDeck.splice(existingCardIndex, 1);
+        }
+        return newDeck;
+      }
+    });
+  };
+  
+  const removeFromDeck = (id: string, target: 'main' | 'extra' | 'side') => {
+    if(target === 'main'){
+      removeFromMain(id);
+    } else if(target === 'extra'){
+      removeFromExtra(id);
+    } else if(target === 'side'){
+      removeFromSide(id);
+    }
   };
 
   const saveDeck = async () => {
@@ -150,7 +286,9 @@ function App() {
 
     const deckData = {
       name: deckName,
-      cards: deck.map((item) => ({cardId: item.id, quantity: item.quantity}))
+      mainDeck: mainDeck.map((item) => ({cardId: item.id, quantity: item.quantity})),
+      extraDeck: extraDeck.map((item) => ({cardId: item.id, quantity: item.quantity})),
+      sideDeck: sideDeck.map((item) => ({cardId: item.id, quantity: item.quantity}))
     };
     
     try {
@@ -175,7 +313,9 @@ function App() {
     try {
       const response = await axios.get(`http://localhost:5000/api/decks/${selectedName}`);
       setDeckName(response.data.name);
-      setDeck(response.data.cards);
+      setMainDeck(response.data.mainDeck);
+      setExtraDeck(response.data.extraDeck);
+      setSideDeck(response.data.sideDeck);
       setLoadedDeckName(response.data.name);
       console.log("Deck loaded:", response.data);
     }catch(error){
@@ -250,13 +390,13 @@ function App() {
                 textAlign: "center"
               }}>
                 <YgoCard card={card} />
-                <button onClick={() => addToDeck(card)} style={{
+                <button onClick={() => addToDeck(card, activeTab)} style={{
                   marginTop: "10px", 
                   width: "100%", 
                   padding: "5px", 
                   cursor: "pointer"
                 }}>
-                  Add to Deck
+                  Add to {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
                 </button>
               </div>
             ))}
@@ -303,8 +443,29 @@ function App() {
             </select>
         </div>
         <h2 style={{margin: "0 0 10px 0"}}>
-          Your Deck ({deck.reduce((s, i) => s + i.quantity, 0)}/60)
+          {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Deck
+          {activeTab === "main" ? totalMain : activeTab === "extra" ? totalExtra : totalSide}/
+          {activeTab === "main" ? 60 : activeTab === "extra" ? 15 : 15}
         </h2>
+        <div style={{display: "flex", gap: "5px", marginBottom: "10px"}}>
+          {['main', 'extra', 'side'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab as "main" | "extra" | "side")}
+              style={{
+                flex: 1,
+                padding: "5px",
+                backgroundColor: activeTab === tab ? "#007bff" : "#ddd",
+                color: activeTab === tab ? "#fff" : "#000",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                fontSize: "12px",
+                cursor: "pointer"
+              }}>
+              {tab.toUpperCase()}
+            </button>
+          ))}
+        </div>
         {/* deck list */}
         <div style={{
           flex: 1,
@@ -313,7 +474,7 @@ function App() {
           flexDirection: "column",
           gap: "8px"
         }}>
-          {deck.map((card) => (
+          {(activeTab === 'main' ? mainDeck : activeTab === 'extra' ? extraDeck : sideDeck).map((card) => (
             <div key={card.id} style={{
               display: "flex",
               alignItems: "center",
@@ -326,9 +487,9 @@ function App() {
               <img src={card.card_images[0].image_url} alt={card.name} style={{width:"30px"}}/>
               <span style={{fontSize:"11px", flex:1, fontWeight:"bold"}}>{card.name}</span>
               <div style={{display: "flex", gap: "4px", alignItems: "center"}}>
-                <button onClick={() => removeFromDeck(card.id)} style={{padding: "0 4px"}}>-</button>
+                <button onClick={() => removeFromDeck(card.id, activeTab)} style={{padding: "0 4px"}}>-</button>
                 <span style={{fontSize:"12px"}}>x{card.quantity}</span>
-                <button onClick={() => addToDeck(card)} style={{padding: "0 4px"}}>+</button>
+                <button onClick={() => addToDeck(card, activeTab)} style={{padding: "0 4px"}}>+</button>
               </div>
             </div>
           ))}

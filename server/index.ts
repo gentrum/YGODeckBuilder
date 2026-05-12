@@ -25,7 +25,7 @@ app.get('/api/cards/search', async (req, res) => {
     try {
         //if theres a name search for it
         const {name} = req.query;
-        //otherwise return the first 30 cards
+        //otherwise return the   first 30 cards
         const query = name ? {name: {$regex: name as string, $options: 'i'}}:{};
         const cards = await Card.find(query).limit(30);
         res.json(cards);
@@ -42,11 +42,17 @@ app.listen(PORT, () => {
 
 //save deck endpoint
 app.post('/api/decks', async (req, res) => {
-    const {name, cards} = req.body;
+    const {name, mainDeck, extraDeck, sideDeck} = req.body;
     try{
         const savedDeck = await Deck.findOneAndUpdate(
             {name},
-            {name, cards, lastModified: new Date()},
+            {
+                name,
+                mainDeck,
+                extraDeck,
+                sideDeck,
+                lastModified: new Date()
+            },
             {upsert: true, new: true}
         );
         res.json(savedDeck);
@@ -72,13 +78,29 @@ app.get('/api/decks/:name', async (req, res) => {
         }
         
         //hydrate the deck's cards with full card data
-        const cards = await Promise.all(
-            deck.cards.map(async (item) => {
-                const cardData = await Card.findOne({id: Number(item.cardId) });
-                return {...cardData?.toObject(), quantity: item.quantity};
-            })
-        );
-        res.json({name: deck.name, cards, lastModified: deck.lastModified});
+        const hydrateDeck =  async (deckArray: any[]) => {
+            if(!deckArray) return [];
+            return await Promise.all(
+                deckArray.map(async (item) => {
+                    const cardData = await Card.findOne({id: Number(item.cardId) }).lean();
+                    return {...cardData, quantity: item.quantity};
+                })
+            );
+        };
+
+        const [hydratedMain, hydratedExtra, hydratedSide] = await Promise.all([
+            hydrateDeck(deck.mainDeck),
+            hydrateDeck(deck.extraDeck),
+            hydrateDeck(deck.sideDeck)
+        ])
+        res.json(
+            {
+                name: deck.name, 
+                mainDeck: hydratedMain,
+                extraDeck: hydratedExtra,
+                sideDeck: hydratedSide,
+                lastModified: deck.lastModified
+            });
     }catch (error){
         res.status(500).json({error: 'Failed to load deck'});
     }
